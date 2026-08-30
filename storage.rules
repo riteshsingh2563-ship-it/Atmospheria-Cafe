@@ -1,0 +1,60 @@
+rules_version = '2';
+
+/* =============================================================================
+   Atmospheria – Firebase Storage rules
+   -----------------------------------------------------------------------------
+   Buckets / paths used by the app
+     menu/<itemId>.<ext>        dish photos     (admin write, public read)
+     gallery/<photoId>.<ext>    gallery uploads (admin write, public read)
+     ambience/<name>.<ext>      hero / about    (admin write, public read)
+     avatars/<uid>.<ext>        admin profile   (owner write)
+     tmp/<uid>/…                client-side compression scratch space
+
+   Deploy: firebase deploy --only storage
+   ============================================================================= */
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() { return request.auth != null; }
+
+    function isAdmin() {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/admin_users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/admin_users/$(request.auth.uid)).data.disabled == false;
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function underLimit(mb) {
+      return request.resource.size < mb * 1024 * 1024;
+    }
+
+    match /menu/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin() && isImage() && underLimit(4);
+    }
+
+    match /gallery/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin() && isImage() && underLimit(6);
+    }
+
+    match /ambience/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin() && isImage() && underLimit(8);
+    }
+
+    match /avatars/{uid}/{fileName} {
+      allow read: if true;
+      allow write: if signedIn() && request.auth.uid == uid && isImage() && underLimit(2);
+    }
+
+    // Anything else is locked down.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

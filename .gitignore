@@ -1,0 +1,34 @@
+# deps / build
+node_modules
+dist
+dist-ssr
+*.local
+
+# env & secrets — never commit Firebase keys or service accounts
+.env
+.env.*
+!.env.example
+*.pem
+serviceAccount*.json
+*-firebase-adminsdk-*.json
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebase
+
+# editor / os
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

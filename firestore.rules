@@ -1,0 +1,178 @@
+rules_version = '2';
+
+/* =============================================================================
+   Atmospheria – The Courtyard Kitchen · Cloud Firestore security rules
+   -----------------------------------------------------------------------------
+   Threat model
+     • The public site is anonymous. It must be able to READ the menu/gallery and
+       CREATE a booking or an order, but never read somebody else's booking,
+       never read the whole collection, and never write to the menu.
+     • Only an authenticated admin (a document at admin_users/<uid>) may manage
+       menu_items, gallery, and the status of bookings/orders.
+     • A guest may cancel their OWN still-pending booking by flipping exactly one
+       field — nothing else.
+
+   Why `allow get: if true` on bookings/orders?
+     Guest documents are written with a client-generated, unguessable id
+     (crypto.randomUUID(), e.g. "b_3f9c1a…") which doubles as the reference the
+     guest is shown on the confirmation screen. Firestore rules cannot inspect
+     query parameters, so the standard pattern is: the id *is* the secret.
+     `list` stays admin-only, so the collection can never be enumerated, and the
+     only personal data stored is the guest's first name + phone + request note.
+     If you later add anonymous Firebase Auth for guests, tighten `get` to
+     `resource.data.ownerUid == request.auth.uid` — every write site already
+     stamps `ownerUid` when an auth user exists.
+
+   Deploy:  npm run deploy:rules   (or: firebase deploy --only firestore:rules)
+   ============================================================================= */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ---------------------------------------------------------------- helpers */
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // True when the caller has a document in admin_users and is not disabled.
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/admin_users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data.disabled == false;
+    }
+
+    // Scale-up path: replace the exists()/get() above with a custom claim so the
+    // rules stop costing extra document reads —
+    //   function isAdmin() { return signedIn() && request.auth.token.role == 'admin'; }
+    // set it with: firebase auth:import / Admin SDK setCustomUserClaims.
+
+    function isString(v) { return v is string; }
+
+    function validPhone(v) {
+      return isString(v) && v.size() >= 8 && v.size() <= 16 && v.matches('^[0-9+ -]+$');
+    }
+
+    // Only the listed fields may differ between the stored and incoming doc.
+    function changesOnly(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    /* ---------------------------------------------------------- admin_users
+       Never readable by the public site; only an existing admin can add another.
+       The very first admin is created by `npm run seed` with a service account. */
+
+    match /admin_users/{uid} {
+      allow read:   if isAdmin() && request.auth.uid == uid;
+      allow list:   if false;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin() && request.auth.uid != uid; // never lock yourself out
+    }
+
+    /* ------------------------------------------------------------- menu_items
+       Public read (the menu page is anonymous). Admin-only writes. */
+
+    match /menu_items/{itemId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    /* ---------------------------------------------------------------- gallery */
+
+    match /gallery/{photoId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    /* ---------------------------------------------------------------- reviews
+       Anyone may read approved reviews and submit a new one, but a submitted
+       review is forced to `approved: false` until an admin publishes it. */
+
+    match /reviews/{reviewId} {
+      allow get:   if true;
+      allow list:  if isAdmin() || (request.query.limit <= 50 && resource.data.approved == true);
+      allow create: if request.resource.data.approved == false
+                    && request.resource.data.rating is int
+                    && request.resource.data.rating >= 1
+                    && request.resource.data.rating <= 5
+                    && request.resource.data.author is string
+                    && request.resource.data.author.size() <= 60
+                    && request.resource.data.text is string
+                    && request.resource.data.text.size() <= 1200;
+      allow update, delete: if isAdmin();
+    }
+
+    /* --------------------------------------------------------------- bookings
+       Lifecycle: pending → confirmed → seated → completed
+                              ↘ rejected / cancelled / no_show               */
+
+    match /bookings/{bookingId} {
+      allow get:  if isAdmin() || true; // id is the guest's secret reference
+      allow list: if isAdmin();
+
+      allow create: if request.resource.data.status == 'pending'
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.name.size() <= 80
+                    && validPhone(request.resource.data.phone)
+                    && request.resource.data.date is string
+                    && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+                    && request.resource.data.slot is string
+                    && request.resource.data.partySize is int
+                    && request.resource.data.partySize >= 1
+                    && request.resource.data.partySize <= 60
+                    && request.resource.data.createdAt == request.time;
+
+      // Admins can do anything; a guest may cancel their own pending booking.
+      allow update: if isAdmin()
+                    || (resource.data.status == 'pending'
+                        && request.resource.data.status == 'cancelled'
+                        && changesOnly(['status', 'updatedAt', 'cancelledAt']));
+
+      allow delete: if isAdmin();
+    }
+
+    /* ----------------------------------------------------------------- orders
+       Lifecycle: received → preparing → ready → served
+                                            ↘ cancelled                        */
+
+    match /orders/{orderId} {
+      allow get:  if isAdmin() || true; // id is the guest's secret order number
+      allow list: if isAdmin();
+
+      allow create: if request.resource.data.status == 'received'
+                    && request.resource.data.orderType in ['dine-in', 'takeaway']
+                    && request.resource.data.items is list
+                    && request.resource.data.items.size() > 0
+                    && request.resource.data.items.size() <= 40
+                    && request.resource.data.subtotal is number
+                    && request.resource.data.subtotal >= 0
+                    && request.resource.data.total is number
+                    && request.resource.data.total >= request.resource.data.subtotal
+                    && request.resource.data.paid == false
+                    && request.resource.data.createdAt == request.time;
+
+      // Only an admin moves an order along the queue or takes payment.
+      allow update: if isAdmin()
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['items', 'subtotal'])
+                        || resource.data.status == 'received');
+
+      allow delete: if isAdmin();
+    }
+
+    /* ------------------------------------------------------- site_settings
+       Single doc `site_settings/public` holds hours, phone, notices. */
+
+    match /site_settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    /* --------------------------------------------------------------- default */
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

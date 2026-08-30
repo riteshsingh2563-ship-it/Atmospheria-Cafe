@@ -1,0 +1,229 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --shell: 84rem;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-cream-100 text-ink font-sans antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    @apply bg-clay-500 text-cream-50;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display font-normal;
+    font-variation-settings: 'SOFT' 0, 'WONK' 0;
+  }
+
+  /* Fraunces optical sizing: tighter for the big display cuts */
+  .font-display {
+    font-optical-sizing: auto;
+  }
+
+  /* Accessible focus ring in brand clay */
+  :focus-visible {
+    @apply outline-none ring-2 ring-clay-500 ring-offset-2 ring-offset-cream-100;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+  }
+
+  /* Thin, warm scrollbars so the admin tables don't look like Windows 98 */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-cream-200;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-bark-300 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-bark-400;
+  }
+}
+
+@layer components {
+  .shell {
+    @apply mx-auto w-full max-w-shell px-5 sm:px-8 lg:px-12;
+  }
+
+  .shell-narrow {
+    @apply mx-auto w-full max-w-5xl px-5 sm:px-8;
+  }
+
+  /* ---------------- eyebrow / kicker ---------------- */
+  .eyebrow {
+    @apply inline-flex items-center gap-2.5 text-[11px] font-medium uppercase tracking-widest2 text-clay-600;
+  }
+  .eyebrow::before {
+    content: '';
+    @apply h-px w-8 bg-clay-400;
+  }
+  .eyebrow--light {
+    @apply text-clay-200;
+  }
+  .eyebrow--light::before {
+    @apply bg-clay-300/70;
+  }
+
+  .section-title {
+    @apply text-h2 font-display text-forest-800;
+  }
+
+  .lede {
+    @apply mt-5 max-w-2xl text-[1.0625rem] leading-relaxed text-ink-soft;
+  }
+
+  /* ---------------- buttons ---------------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-medium
+           transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-clay-500 text-cream-50 shadow-[0_10px_30px_-12px_rgba(196,98,45,.8)]
+           hover:-translate-y-0.5 hover:bg-clay-600 hover:shadow-[0_16px_36px_-12px_rgba(196,98,45,.85)];
+  }
+  .btn-forest {
+    @apply btn bg-forest-800 text-cream-100 hover:-translate-y-0.5 hover:bg-forest-700;
+  }
+  .btn-outline {
+    @apply btn border border-forest-800/25 text-forest-800 hover:border-forest-800 hover:bg-forest-800 hover:text-cream-100;
+  }
+  .btn-ghost-light {
+    @apply btn border border-cream-100/40 text-cream-100 hover:bg-cream-100/15;
+  }
+  .btn-sm {
+    @apply px-4 py-2 text-[13px];
+  }
+
+  /* ---------------- surfaces ---------------- */
+  .card {
+    @apply rounded-2xl border border-bark-200/70 bg-cream-50 shadow-card;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-bark-200 bg-cream-50 px-4 py-3 text-[15px] text-ink
+           placeholder:text-ink-muted/70 transition
+           focus:border-clay-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-clay-500/10;
+  }
+
+  .label {
+    @apply mb-1.5 block text-[12px] font-medium uppercase tracking-[0.14em] text-ink-muted;
+  }
+
+  .chip {
+    @apply inline-flex cursor-pointer select-none items-center gap-2 rounded-full border border-bark-200
+           bg-cream-50 px-4 py-2 text-[13px] font-medium text-ink-soft transition
+           hover:border-clay-300 hover:text-clay-700
+           data-[active=true]:border-clay-500 data-[active=true]:bg-clay-500 data-[active=true]:text-cream-50
+           data-[active=true]:shadow-[0_8px_20px_-10px_rgba(196,98,45,.9)];
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.1em];
+  }
+
+  .divider-leaf {
+    @apply mx-auto flex w-full max-w-xs items-center gap-4 text-bark-300;
+  }
+
+  /* ---------------- veg / non-veg statutory marks (FSSAI style) ---------------- */
+  .veg-mark {
+    @apply inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] border;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Scroll-reveal: element starts hidden, .is-visible is toggled by <Reveal/> */
+  .reveal {
+    opacity: 0;
+    transform: translateY(26px);
+    transition:
+      opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+    will-change: opacity, transform;
+  }
+  .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  .grain-overlay {
+    @apply pointer-events-none absolute inset-0 bg-grain opacity-[0.035] mix-blend-multiply;
+  }
+
+  .mask-fade-b {
+    -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+  }
+
+  .hover-lift {
+    @apply transition-transform duration-500 hover:-translate-y-1;
+  }
+
+  /* Carousel autoplay progress — used by the hero dots */
+  .progress-fill {
+    transform-origin: left center;
+    animation: progressScale var(--progress-ms, 6800ms) linear forwards;
+  }
+}
+
+@keyframes progressScale {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
